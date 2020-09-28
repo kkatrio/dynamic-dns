@@ -32,16 +32,12 @@ ip_changed(){
 delete_dns_record(){
 	echo "deleting existing record..."
 	RECORD_ID="$(search_dns_records -r "map(select(.hostname == \"$SUBDOMAIN.$DOMAIN\"))[0].id")"
-	if [[ $(curl -o /dev/null -sL -w "%{http_code}" -X DELETE "$API/dns_zones/$DNS_ZONE/dns_records/$RECORD_ID?access_token=$ACCESS_TOKEN") -eq 204 ]]; then
-		return 0
-	else
-		return 1
-	fi
+	curl -o /dev/null -sL -w "%{http_code}" -X DELETE "$API/dns_zones/$DNS_ZONE/dns_records/$RECORD_ID?access_token=$ACCESS_TOKEN" > /dev/null # if it exists, it will be 204 -- no reason to check if record exists and also check the status code
 }
 
 create_dns_record(){
 	echo "creating existing record..."
-	PAYLOAD=$(jq -n -r '{type:"A",hostname:"'$SUBDOMAIN'.$DOMAIN",ttl:"3600",value:"'$IPV4'"}')
+	PAYLOAD=$(jq -n -r '{type:"A",hostname:"'$SUBDOMAIN'.'$DOMAIN'",ttl:"3600",value:"'$IPV4'"}')
 	if [[ $(curl -o /dev/null -sL -w "%{http_code}" -d "$PAYLOAD" -H 'content-type:application/json' "$DNS_RECORDS_URL") -eq 201 ]]; then
 		return 0
 	else
@@ -49,7 +45,9 @@ create_dns_record(){
 	fi
 }
 
-if record_exists && ip_changed; then
-	delete_dns_record && echo "deleted"
+if ip_changed; then
+	if record_exists; then
+		delete_dns_record
+	fi
 	create_dns_record && echo "created"
 fi
